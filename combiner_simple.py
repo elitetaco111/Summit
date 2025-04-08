@@ -24,5 +24,8 @@ def place_logo(apparel_path, logo_path, output_path, position, scale=0.2):
     #Save result
     apparel.save(output_path, format="PNG")
 
-#Example usage
-place_logo("tshirt.png", "logo.png", "output.png", position="center")
+def main():
+    place_logo("tshirt.png", "logo.png", "output.png", position="center")
+
+if __name__ == "__main__":
+    main()

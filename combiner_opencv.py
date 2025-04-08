@@ -51,7 +51,7 @@ def apply_displacement_map(logo_img, displacement_map, intensity=10):
     displaced = cv2.remap(logo_img, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
     return displaced
 
-def overlay_logo_on_apparel(apparel_path, logo_path, output_path, position=(100, 100), scale=0.3, displacement_intensity=10):
+def overlay_logo_on_apparel(apparel_path, logo_path, output_path, position="center", scale=0.3, displacement_intensity=10):
     # Load images
     apparel = cv2.imread(apparel_path, cv2.IMREAD_COLOR)
     logo = cv2.imread(logo_path, cv2.IMREAD_UNCHANGED)  # Keep alpha channel
@@ -74,7 +74,14 @@ def overlay_logo_on_apparel(apparel_path, logo_path, output_path, position=(100,
     displaced_logo = apply_displacement_map(logo_rgb, displacement, intensity=displacement_intensity)
 
     # Blend logo with apparel
-    x, y = position
+    if position == "center":
+        x = (apparel.width - logo.width) // 2
+        y = (apparel.height - logo.height) // 2
+    elif position == "top_left":
+        x, y = 50, 50  #tweak
+    else:
+        x, y = position
+    
     roi = apparel[y:y+logo_h, x:x+logo_w]
 
     for c in range(3):
@@ -85,12 +92,15 @@ def overlay_logo_on_apparel(apparel_path, logo_path, output_path, position=(100,
     # Save output
     cv2.imwrite(output_path, apparel)
 
+def main():
+    overlay_logo_on_apparel(
+        apparel_path="front.png",
+        logo_path="front_g.png",
+        output_path="mockup_output.jpg",
+        position=(150, 100),
+        scale=0.25,
+        displacement_intensity=20
+    )
 
-overlay_logo_on_apparel(
-    apparel_path="front.png",
-    logo_path="front_g.png",
-    output_path="mockup_output.jpg",
-    position=(150, 100),
-    scale=0.25,
-    displacement_intensity=20
-)
+if __name__ == "__main__":
+    main()
