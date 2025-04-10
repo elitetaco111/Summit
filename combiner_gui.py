@@ -80,19 +80,18 @@ def apply_perspective_warp(logo_img, src_points, dest_points):
 
 #main function to combine the image and logo
 def overlay_logo(apparel_img, logo_img, position, scale=0.3, wrap=False, wrap_intensity=15, perspective_points=None):
+    #get images as arrays
     apparel = np.array(apparel_img.convert("RGB"))[:, :, ::-1]  #get BGR version
     logo = np.array(logo_img.convert("RGBA"))  #Keep alpha (transparency)
-    logo_rgb = logo[:, :, :3][:, :, ::-1] #convert to BGR
 
     #Resize logo
     logo_h = int(apparel.shape[0] * scale)
     logo_w = int(logo.shape[1] * logo_h / logo.shape[0])
     logo = cv2.resize(logo, (logo_w, logo_h), interpolation=cv2.INTER_AREA)
 
-
     #seperate the alpha channel from the logo
     alpha = logo[:, :, 3] / 255.0
-    logo_rgb = logo[:, :, :3]
+    logo_rgb = logo[:, :, :3][:, :, ::-1] #convert logo to BGR
     x, y = position
 
     #wrapper logic
@@ -103,7 +102,7 @@ def overlay_logo(apparel_img, logo_img, position, scale=0.3, wrap=False, wrap_in
         
         elif wrap_method == "Light Map":
             apparel_bgr = np.array(apparel_img.convert("RGB"))[:, :, ::-1]  # PIL to BGR
-            #logo_rgba = np.dstack((logo_rgb, alpha * 255)).astype(np.uint8)
+            #passing both apparel and logo to the blending as BGR images
             logo_rgb = apply_fabric_wrap_blend(logo_rgb, apparel_bgr, alpha, position, intensity=wrap_intensity / 100.0)
 
         elif wrap_method == "Perspective Warp" and perspective_points:
@@ -187,30 +186,29 @@ def draw_guides(image_pil, step=250):
     w, h = image.size
 
     #set font size based on image width
-    font_size = w / 100
-    if font_size < 14:
-        font_size = 14 #set min font size to 20px
+    font_size = w / 70
+    if font_size < 20:
+        font_size = 20 #set min font size to 20px
 
-    #Set step based on image width
-    if w < 1000:
-        step = 100
-    elif w < 2000:
-        step = 250
-    elif w < 3500:
-        step = 500
-    # Load a font
+    #Calc steps for 10 equal sections
+    x_step = w // 10
+    y_step = h // 10
+
+    #Load font
     try:
-        font = ImageFont.truetype("arial.ttf", font_size)
+        font = ImageFont.truetype("arial.ttf", int(font_size))
     except:
         font = ImageFont.load_default()
 
-    # Draw vertical lines and label them
-    for x in range(0, w, step):
+    #Draw vertical lines and label them (9 lines for 10 sections)
+    for i in range(1, 10):
+        x = i * x_step
         draw.line([(x, 0), (x, h)], fill=(255, 0, 0), width=1)
         draw.text((x + 5, 5), f"x={x}", fill=(255, 0, 0), font=font)
 
-    # Draw horizontal lines and label them
-    for y in range(0, h, step):
+    #Draw horizontal lines and label them (9 lines for 10 sections)
+    for i in range(1, 10):
+        y = i * y_step
         draw.line([(0, y), (w, y)], fill=(0, 255, 0), width=1)
         draw.text((5, y + 5), f"y={y}", fill=(0, 255, 0), font=font)
 
