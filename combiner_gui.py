@@ -203,14 +203,24 @@ def draw_guides(image_pil, step=250):
     #Draw vertical lines and label them (9 lines for 10 sections)
     for i in range(1, 10):
         x = i * x_step
-        draw.line([(x, 0), (x, h)], fill=(255, 0, 0), width=1)
-        draw.text((x + 5, 5), f"x={x}", fill=(255, 0, 0), font=font)
+        # Make center vertical line more noticeable
+        if i == 5:  # Center vertical line
+            draw.line([(x, 0), (x, h)], fill=(0, 0, 0), width=3)  #thicker
+            draw.text((x + 5, 5), f"x={x}", fill=(0, 0, 0), font=font)
+        else:
+            draw.line([(x, 0), (x, h)], fill=(255, 0, 0), width=1)
+            draw.text((x + 5, 5), f"x={x}", fill=(255, 0, 0), font=font)
 
-    #Draw horizontal lines and label them (9 lines for 10 sections)
+    # Draw horizontal lines and label them (9 lines for 10 sections)
     for i in range(1, 10):
         y = i * y_step
-        draw.line([(0, y), (w, y)], fill=(0, 255, 0), width=1)
-        draw.text((5, y + 5), f"y={y}", fill=(0, 255, 0), font=font)
+        # Make center horizontal line more noticeable
+        if i == 5:  # Center horizontal line
+            draw.line([(0, y), (w, y)], fill=(0, 0, 0), width=3)  #thicker
+            draw.text((5, y + 5), f"y={y}", fill=(0, 0, 0), font=font)
+        else:
+            draw.line([(0, y), (w, y)], fill=(0, 0, 255), width=1)
+            draw.text((5, y + 5), f"y={y}", fill=(0, 0, 255), font=font)
 
     return image
 
