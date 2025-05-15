@@ -3,9 +3,10 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import random
+from lxml import html
 
 # Base URL of the website
-BASE_URL = "https://usteamcolors.com/"
+BASE_URL = "https://teamcolorcodes.com/ncaa-color-codes/"
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
@@ -24,16 +25,25 @@ def get_headers():
 
 def get_team_links():
     """
-    Scrape the main page to get links to all team pages.
+    Scrape the main page to get links to all team pages using XPath.
     """
     response = requests.get(BASE_URL, headers=get_headers(), timeout=10)
-    soup = BeautifulSoup(response.text, 'html.parser')
+    tree = html.fromstring(response.content)  # Use lxml to parse the HTML content
     team_links = []
 
-    # Find all team links
-    for link in soup.select('a[href*="-team-colors"]'):
-        team_links.append(link['href'])
-    
+    # XPath to locate all <p> blocks below the "Browse By Team" <h4>
+    xpath_for_paragraphs = "/html/body/div[1]/div/div/main/article/div/p[2]"
+
+    # Find all <p> blocks
+    paragraphs = tree.xpath(xpath_for_paragraphs)
+    for paragraph in paragraphs:
+        # Extract all <a> tags within each <p> block
+        links = paragraph.xpath(".//a[@href]")
+        for link in links:
+            team_links.append(link.attrib['href'])
+
+    if not team_links:
+        print("Could not find any team links using the provided XPath.")
     return team_links
 
 def scrape_team_colors(team_url):
@@ -42,62 +52,33 @@ def scrape_team_colors(team_url):
     """
     response = requests.get(team_url, headers=get_headers(), timeout=10)
     soup = BeautifulSoup(response.text, 'html.parser')
-
-    # Try to find the team name
-    team_name_element = soup.find('h1', class_='title')
-    if not team_name_element:
-        print(f"Could not find team name on page: {team_url}")
-        return pd.DataFrame()  # Return an empty DataFrame if team name is not found
-
-    team_name = team_name_element.text.strip()
+    time.sleep(3)
+    # Find all color blocks
+    color_blocks = soup.find_all('div', class_='colorblock')
+    if not color_blocks:
+        print(f"Could not find color blocks on page: {team_url}")
+        return pd.DataFrame()  # Return an empty DataFrame if no color blocks are found
 
     # Create a DataFrame to store the colors for this team
-    team_colors_df = pd.DataFrame(columns=['Team', 'Color Name', 'Hex', 'RGB', 'CMYK', 'Pantone'])
+    team_colors_df = pd.DataFrame(columns=['Link', 'Pantone', 'Hex Color', 'RGB', 'CMYK', 'Matching Paint Link'])
 
-    # Find the div containing the color table (ID ends with '-color-codes')
-    color_div = soup.find('div', id=lambda x: x and x.endswith('-color-codes'))
-    if not color_div:
-        print(f"Could not find color table for {team_name} at {team_url}")
-        return team_colors_df  # Return an empty DataFrame if no color table is found
+    for block in color_blocks:
+        # Extract text from the color block and split by <br> tags
+        block_text = block.decode_contents().split('<br>')
+        block_data = [team_url]  # Start with the team URL as the first column
+        for item in block_text:
+            # Clean up the text and append it to the row
+            block_data.append(BeautifulSoup(item, 'html.parser').text.strip())
 
-    # Iterate through each table within the color div
-    color_tables = color_div.find_all('table')
-    for table in color_tables:
-        color_data = {}  # Create a new dictionary for each table
+        # Ensure the row has the correct number of columns
+        while len(block_data) < 6:
+            block_data.append("")  # Fill missing columns with empty strings
 
-        # Extract the color name from the <th> element in the first <tr>
-        first_row = table.find('tbody').find('tr')
-        if first_row:
-            color_name_element = first_row.find('th').find('span')
-            if color_name_element:
-                color_data["Color Name"] = color_name_element.text.strip()
-
-        # Extract other color details from the <td> elements in the rows
-        rows = table.find('tbody').find_all('tr')
-        for row in rows:
-            cells = row.find_all('td')
-            if len(cells) == 2:  # Ensure there are three <td> elements (label, value)
-                label = cells[0].text.strip().replace(":", "")  # Remove the colon from the label
-                value = cells[1].text.strip()  # The value (e.g., "#002244")
-                color_data[label] = value
-
-        # Ensure the required fields are present before appending
-        if "Color Name" in color_data and "Hex color" in color_data:
-            # Append the color data as a new row in the DataFrame
-            team_colors_df = pd.concat(
-                [
-                    team_colors_df,
-                    pd.DataFrame([{
-                        'Team': team_name,
-                        'Color Name': color_data.get("Color Name", ""),
-                        'Hex': color_data.get("Hex color", ""),
-                        'RGB': color_data.get("RGB", ""),
-                        'CMYK': color_data.get("CMYK", ""),
-                        'Pantone': color_data.get("Pantone", ""),
-                    }])
-                ],
-                ignore_index=True
-            )
+        # Append the row to the DataFrame
+        team_colors_df = pd.concat(
+            [team_colors_df, pd.DataFrame([block_data], columns=team_colors_df.columns)],
+            ignore_index=True
+        )
 
     return team_colors_df
 
@@ -107,8 +88,7 @@ def main():
     print(f"Found {len(team_links)} team links.")
 
     # Create an empty DataFrame to store all team colors
-    all_colors_df = pd.DataFrame(columns=['Team', 'Color Name', 'Hex', 'RGB', 'CMYK', 'Pantone'])
-    i = 0
+    all_colors_df = pd.DataFrame(columns=['Link', 'Pantone', 'Hex Color', 'RGB', 'CMYK', 'Matching Paint Link'])
     for team_url in team_links:
         print(f"Scraping colors from {team_url}...")
         team_colors_df = scrape_team_colors(team_url)
