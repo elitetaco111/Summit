@@ -17,14 +17,28 @@ GARMENTS_FOLDER = os.path.join(CURRENT_DIR, "Garments")
 # Adjustable pixels per inch value
 PIXELS_PER_INCH = 96  # Default value, can be adjusted as needed
 
+# Function to create and save an alpha mask
+def save_alpha_mask(image, output_path):
+    """
+    Save the alpha mask of the given image.
+    """
+    alpha = image.split()[-1]  # Extract the alpha channel
+    alpha.save(output_path)
+
 # Function to process the CSV file
 def process_csv(csv_file, apply_light_map, wrap_intensity):
+    """
+    Process the CSV file to overlay logos on garments based on the provided data.
+    """
     # Read the CSV file
     data = pd.read_csv(csv_file)
 
     # Create a folder for output images
     output_folder = os.path.join(CURRENT_DIR, "Output")
     os.makedirs(output_folder, exist_ok=True)
+
+    # Dictionary to track generated alpha masks
+    alpha_masks = {}
 
     # Create a ZIP buffer for downloading
     zip_buffer = io.BytesIO()
@@ -51,21 +65,38 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             graphic_img = Image.open(graphic_path).convert("RGBA")
             garment_img = Image.open(garment_path).convert("RGBA")
 
-            # Convert width from inches to pixels
-            width_in_pixels = width_in_inches * PIXELS_PER_INCH
+            # Check if the alpha mask for this garment has already been created
+            if garment not in alpha_masks:
+                alpha_mask_path = os.path.join(output_folder, f"{os.path.splitext(garment)[0]}_alpha.png")
+                save_alpha_mask(garment_img, alpha_mask_path)
+                alpha_masks[garment] = alpha_mask_path  # Store the path to the alpha mask
+            else:
+                alpha_mask_path = alpha_masks[garment]  # Reuse the existing alpha mask
 
-            # Calculate scale factor based on the desired width in pixels
-            scale = width_in_pixels / graphic_img.width
+            # Calculate the logo width in pixels based on the Width column
+            logo_width_pixels = int((width_in_inches / 12) * 400)
+
+            # Calculate the logo height based on the aspect ratio
+            aspect_ratio = graphic_img.height / graphic_img.width
+            logo_height_pixels = int(logo_width_pixels * aspect_ratio)
+
+            # Resize the logo to the calculated width and height
+            graphic_img = graphic_img.resize((logo_width_pixels, logo_height_pixels), Image.Resampling.LANCZOS)
 
             # Overlay the graphic on the garment
-            position = (garment_img.width // 2, garment_img.height // 2)  # Center position
+            position = (garment_img.width // 2, garment_img.height // 2 - 100)  # Adjust position
             result_img = overlay_logo(
-                garment_img, graphic_img, position, scale, apply_light_map, wrap_intensity
+                garment_img, graphic_img, position, apply_light_map=apply_light_map, wrap_intensity=wrap_intensity
             )
+
+            # Apply the alpha mask to the final result
+            result_img_pil = Image.fromarray(result_img).convert("RGBA")
+            alpha_mask = Image.open(alpha_mask_path).convert("L")  # Load the alpha mask as grayscale
+            result_img_pil.putalpha(alpha_mask)
 
             # Save the result image with the style number as the filename
             output_path = os.path.join(output_folder, f"{style_number}.png")
-            Image.fromarray(result_img).save(output_path)
+            result_img_pil.save(output_path)
 
             # Add the result image to the ZIP file
             with open(output_path, "rb") as img_file:
@@ -73,11 +104,6 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
 
     zip_buffer.seek(0)
     return zip_buffer
-
-def generate_displacement_map(apparel_img):
-    gray = cv2.cvtColor(apparel_img, cv2.COLOR_BGR2GRAY)
-    displacement = cv2.GaussianBlur(gray, (21, 21), 0)
-    return displacement
 
 #light blend logic on the logo
 def apply_fabric_wrap_blend(logo_img, apparel_img, alpha, position, intensity=0.4):
@@ -119,15 +145,13 @@ def apply_fabric_wrap_blend(logo_img, apparel_img, alpha, position, intensity=0.
     return blended_rgb
 
 #main function to combine the image and logo
-def overlay_logo(apparel_img, logo_img, position, scale=0.3, apply_light_map=False, wrap_intensity=15):
+def overlay_logo(apparel_img, logo_img, position, apply_light_map=False, wrap_intensity=15):
+    """
+    Overlay the resized logo on the garment image at the specified position.
+    """
     # Get images as arrays
     apparel = np.array(apparel_img.convert("RGB"))[:, :, ::-1]  # Convert to BGR
     logo = np.array(logo_img.convert("RGBA"))  # Keep alpha (transparency)
-
-    # Resize logo
-    logo_h = int(apparel.shape[0] * scale)
-    logo_w = int(logo.shape[1] * logo_h / logo.shape[0])
-    logo = cv2.resize(logo, (logo_w, logo_h), interpolation=cv2.INTER_AREA)
 
     # Separate the alpha channel from the logo
     alpha = logo[:, :, 3] / 255.0  # Normalize alpha to [0, 1]
@@ -140,12 +164,12 @@ def overlay_logo(apparel_img, logo_img, position, scale=0.3, apply_light_map=Fal
     center_x, center_y = position
 
     # Calculate top-left position from center
-    x = int(center_x - logo_w / 2)
-    y = int(center_y - logo_h / 2)
+    x = int(center_x - logo.shape[1] / 2)
+    y = int(center_y - logo.shape[0] / 2)
 
     # Ensure position is within bounds
-    x = max(0, min(apparel.shape[1] - logo_w, x))
-    y = max(0, min(apparel.shape[0] - logo_h, y))
+    x = max(0, min(apparel.shape[1] - logo.shape[1], x))
+    y = max(0, min(apparel.shape[0] - logo.shape[0], y))
 
     # Apply light map wrap if selected
     if apply_light_map:
