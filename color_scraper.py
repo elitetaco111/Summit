@@ -32,7 +32,7 @@ def get_team_links():
     team_links = []
 
     # XPath to locate all <p> blocks below the "Browse By Team" <h4>
-    xpath_for_paragraphs = "/html/body/div[1]/div/div/main/article/div/p[2]"
+    xpath_for_paragraphs = "//div[@class='entry-content']//h4[text()='Browse By Team']/following-sibling::p"
 
     # Find all <p> blocks
     paragraphs = tree.xpath(xpath_for_paragraphs)

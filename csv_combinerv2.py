@@ -9,7 +9,7 @@ import pandas as pd
 
 #TO RUN: streamlit run csv_combiner.py
 
-# Ensure the script connects to the correct folders
+#Ensure the script connects to the correct folders
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 GRAPHICS_FOLDER = os.path.join(CURRENT_DIR, "Graphics")
 GARMENTS_FOLDER = os.path.join(CURRENT_DIR, "Garments")

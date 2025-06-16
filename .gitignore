@@ -7,3 +7,5 @@
 *.psd
 *.csv
 *.xlsx
+*.txt
+*.pyc
