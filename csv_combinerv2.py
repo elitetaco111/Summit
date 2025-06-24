@@ -7,9 +7,9 @@ import os
 import zipfile
 import pandas as pd
 
-#TO RUN: streamlit run csv_combiner.py
+#TO RUN: streamlit run csv_combinerv2.py
 
-#Ensure the script connects to the correct folders
+# Ensure the script connects to the correct folders
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 GRAPHICS_FOLDER = os.path.join(CURRENT_DIR, "Graphics")
 GARMENTS_FOLDER = os.path.join(CURRENT_DIR, "Garments")
@@ -49,7 +49,7 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             design = f"{row['Design']}.png"
             garment = f"{row['Garment']}.png"
             width_in_inches = row["Width"]
-            style_number = row["Style Number"]
+            style_number = row["Style Number or MPN"]
 
             # Load the graphic and garment images
             graphic_path = os.path.join(GRAPHICS_FOLDER, design)
@@ -73,8 +73,25 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             else:
                 alpha_mask_path = alpha_masks[garment]  # Reuse the existing alpha mask
 
+            # --- NEW LOGO WIDTH CALCULATION BASED ON ALPHA MASK AT Y=750 ---
+            # alpha_mask_img = Image.open(alpha_mask_path).convert("L")
+            # alpha_mask_np = np.array(alpha_mask_img)
+            # y_row = 750
+            # if y_row >= alpha_mask_np.shape[0]:
+            #     st.error(f"Alpha mask for {garment} is not tall enough for y=750.")
+            #     continue
+            # row_pixels = alpha_mask_np[y_row]
+            # nonzero_indices = np.where(row_pixels > 0)[0]
+            # if len(nonzero_indices) < 2:
+            #     st.error(f"Could not find a valid width at y=750 in alpha mask for {garment}.")
+            #     continue
+            # mask_width = nonzero_indices[-1] - nonzero_indices[0]
+            # logo_width_pixels = int(mask_width * 0.7)
+            # --- END NEW LOGO WIDTH CALCULATION ---
+
+            #OLD LOGO WIDTH CALC
             # Calculate the logo width in pixels based on the Width column
-            logo_width_pixels = int((width_in_inches / 12) * 500)
+            logo_width_pixels = int((width_in_inches / 12) * 370)
 
             # Calculate the logo height based on the aspect ratio
             aspect_ratio = graphic_img.height / graphic_img.width
@@ -83,8 +100,39 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             # Resize the logo to the calculated width and height
             graphic_img = graphic_img.resize((logo_width_pixels, logo_height_pixels), Image.Resampling.LANCZOS)
 
+            # Get coordinates from CSV and clean up 'px' if present
+            x_coord_raw = row.get("x coordinate", 500)
+            y_coord_raw = row.get("y coordinate", None)
+
+            def clean_px(val, default=None):
+                if pd.isna(val):
+                    return default
+                if isinstance(val, str) and val.strip().endswith("px"):
+                    val = val.strip()[:-2]
+                try:
+                    return int(float(val))
+                except Exception:
+                    return default
+
+            x_coord = clean_px(x_coord_raw, 500)
+            y_coord = clean_px(y_coord_raw, None)
+
+            # Determine logo position
+            if x_coord == 500:
+                center_x = garment_img.width // 2
+            else:
+                center_x = x_coord
+
+            if y_coord is not None:
+                # y_coord is the top of the logo, so center_y = y_coord + logo_height // 2
+                center_y = y_coord + logo_height_pixels // 2
+            else:
+                # Default: center vertically minus 40 (as before)
+                center_y = garment_img.height // 2 - 40
+
+            position = (center_x, center_y)
+
             # Overlay the graphic on the garment
-            position = (garment_img.width // 2, garment_img.height // 2 - 40)  # Adjust position
             result_img = overlay_logo(
                 garment_img, graphic_img, position, apply_light_map=apply_light_map, wrap_intensity=wrap_intensity
             )
