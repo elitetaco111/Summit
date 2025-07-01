@@ -142,13 +142,17 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             alpha_mask = Image.open(alpha_mask_path).convert("L")  # Load the alpha mask as grayscale
             result_img_pil.putalpha(alpha_mask)
 
-            # Save the result image with the style number as the filename
-            output_path = os.path.join(output_folder, f"{style_number}.png")
-            result_img_pil.save(output_path)
+            # Save the result image with the style number as the filename (JPG with white background)
+            output_jpg_path = os.path.join(output_folder, f"{style_number}.jpg")
 
-            # Add the result image to the ZIP file
-            with open(output_path, "rb") as img_file:
-                zip_file.writestr(f"{style_number}.png", img_file.read())
+            # Composite onto white background
+            white_bg = Image.new("RGB", result_img_pil.size, (255, 255, 255))
+            result_img_rgb = Image.alpha_composite(white_bg.convert("RGBA"), result_img_pil).convert("RGB")
+            result_img_rgb.save(output_jpg_path, "JPEG", quality=95)
+
+            # Add the result image to the ZIP file as JPG
+            with open(output_jpg_path, "rb") as img_file:
+                zip_file.writestr(f"{style_number}.jpg", img_file.read())
 
     zip_buffer.seek(0)
     return zip_buffer
