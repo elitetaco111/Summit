@@ -49,7 +49,9 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             design = f"{row['Design']}.png"
             garment = f"{row['Garment']}.png"
             width_in_inches = row["Width"]
-            style_number = row["Style Number or MPN"]
+
+            # Use Style Number if present, otherwise use MPN (which will never be empty)
+            style_number = str(row["Style Number"]).strip() if pd.notna(row["Style Number"]) and str(row["Style Number"]).strip() != "" else str(row["MPN"]).strip()
 
             # Load the graphic and garment images
             graphic_path = os.path.join(GRAPHICS_FOLDER, design)
