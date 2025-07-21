@@ -29,18 +29,25 @@ def save_alpha_mask(image, output_path):
 def process_csv(csv_file, apply_light_map, wrap_intensity):
     """
     Process the CSV file to overlay logos on garments based on the provided data.
+    Also generates a CSV of missing assets and includes it in the ZIP.
     """
     # Read the CSV file
     data = pd.read_csv(csv_file)
 
-    # Create a folder for output images
+    # Make values in relevant columns lowercase (case-insensitive)
+    for col in ["Design", "Garment", "Style Number", "MPN"]:
+        if col in data.columns:
+            data[col] = data[col].apply(lambda x: x.lower() if isinstance(x, str) else x)
+
     output_folder = os.path.join(CURRENT_DIR, "Output")
     os.makedirs(output_folder, exist_ok=True)
 
-    # Dictionary to track generated alpha masks
     alpha_masks = {}
 
-    # Create a ZIP buffer for downloading
+    # Track missing assets
+    missing_graphics = []
+    missing_garments = []
+
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as zip_file:
         # Process each row in the CSV
@@ -57,11 +64,14 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             graphic_path = os.path.join(GRAPHICS_FOLDER, design)
             garment_path = os.path.join(GARMENTS_FOLDER, garment)
 
+            missing = False
             if not os.path.exists(graphic_path):
-                st.error(f"Graphic file not found: {graphic_path}")
-                continue
+                missing_graphics.append(row['Design'])
+                missing = True
             if not os.path.exists(garment_path):
-                st.error(f"Garment file not found: {garment_path}")
+                missing_garments.append(row['Garment'])
+                missing = True
+            if missing:
                 continue
 
             graphic_img = Image.open(graphic_path).convert("RGBA")
@@ -155,6 +165,14 @@ def process_csv(csv_file, apply_light_map, wrap_intensity):
             # Add the result image to the ZIP file as JPG
             with open(output_jpg_path, "rb") as img_file:
                 zip_file.writestr(f"{style_number}.jpg", img_file.read())
+
+        # After processing, add missing assets CSV to the ZIP
+        missing_df = pd.DataFrame({
+            "Missing Garments": pd.Series(missing_garments).drop_duplicates().reset_index(drop=True),
+            "Missing Graphics": pd.Series(missing_graphics).drop_duplicates().reset_index(drop=True)
+        })
+        missing_csv = missing_df.to_csv(index=False)
+        zip_file.writestr("missing_assets.csv", missing_csv)
 
     zip_buffer.seek(0)
     return zip_buffer
