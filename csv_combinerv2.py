@@ -285,6 +285,8 @@ else:
     wrap_intensity = 0
 
 if csv_file:
+    # Get base name for output ZIP
+    input_filename = os.path.splitext(csv_file.name)[0]
     if st.button("Process"):
         zip_buffer = process_csv(csv_file, apply_light_map, wrap_intensity)
         st.success("Processing complete. Download the results below.")
@@ -293,6 +295,6 @@ if csv_file:
         st.download_button(
             label="Download All Processed Images (ZIP)",
             data=zip_buffer,
-            file_name="processed_apparel_logos.zip",
+            file_name=f"{input_filename}.zip",
             mime="application/zip",
         )
